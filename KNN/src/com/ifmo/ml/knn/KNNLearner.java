@@ -2,9 +2,11 @@ package com.ifmo.ml.knn;
 
 import com.ifmo.ml.knn.dividers.CrossValidationDivider;
 import com.ifmo.ml.knn.dividers.Divider;
+import com.ifmo.ml.knn.exceptions.DataException;
 import com.ifmo.ml.knn.kernelfunctions.KernelFunction;
 import com.ifmo.ml.knn.kernelfunctions.TriweightKernelFunction;
 import com.ifmo.ml.knn.metrics.*;
+import com.ifmo.ml.knn.utils.Pair;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -98,7 +100,7 @@ public class KNNLearner {
         return optK;
     }
 
-    private double findMeasure(List<Precedent> tests, int optK) {
+    private Pair<Double, Double> findMeasure(List<Precedent> tests, int optK) {
         int[][] tm = new int[2][2];
         for (Precedent p : tests) {
             double c1 = classSimilarity(p, tests, Math.min(optK, tests.size() - 1), 0),
@@ -110,22 +112,28 @@ public class KNNLearner {
 
         if (tm[1][1] == 0) {
             System.out.println("NAN");
-            return 0;
+            return new Pair<>(0., 0.);
         }
         double precision = 1.0 * tm[1][1] / (tm[1][1] + tm[1][0]),
                recall    = 1.0 * tm[1][1] / (tm[1][1] + tm[0][1]);
 
-        return 2 * precision * recall / (precision + recall);
+        return new Pair<>(2 * precision * recall / (precision + recall), fbMeasure(precision, recall));
     }
 
-    public double learn() {
+    private double fbMeasure(double precision, double recall) {
+        double b = 0.5;
+        if (Double.compare(precision, recall) < 0) {
+            b = 2.0;
+        }
+        return (1 + b * b) * precision * recall / (b * b *precision + recall);
+    }
+
+    public Pair<Double, Double> learn() {
         List<Precedent> precedents = getPrecedents();
         if (precedents == null) {
-            System.err.println("Wrong data set file");
-            return -1;
+            throw new DataException("Wrong data set file");
         } else if (precedents.stream().allMatch(Predicate.isEqual(precedents.get(0)))) {
-            System.err.println("Need all data equivalence classes different");
-            return -1;
+            throw new DataException("Need all data equivalence classes different");
         }
 
         Collections.shuffle(precedents);
